@@ -59,7 +59,7 @@ df['No_of_Owners'] = df['No_of_Owners'].astype(int)
 
 # %% 
 # do log transformations on the price column using np.log()
-df['Price'] = np.log(df['Price'])
+df['log_Price'] = np.log(df['Price'])
 
 # %% 
 # center the Make_year column so it represents years since 2011
@@ -88,10 +88,23 @@ plt.legend()
 plt.show()
 
 # %% [markdown]
-
+# MG motors is the most expensive overall with Kia and Jeep also being expensive. In general, 
+# prices seem to be around 60-70 thousand dollars. 
 
 # %% [markdown]
 #   3. Split the data into an 80% training set and a 20% testing set.
+
+# %% 
+# one-hot-encode the data frame before we split it so that we can use the categorical variables later
+cat = list(df.select_dtypes(include=['category']).columns)
+# make a new data frame with these one hot encoded 
+df= pd.get_dummies(df, columns=cat, drop_first=True)
+
+# %% 
+# use train_test_split to split the data into train and test sets 
+train, test = train_test_split(df, train_size=0.8, random_state=42)
+
+# %% [markdown]
 #   4. Make a model where you regress price on the numeric variables alone; what is the 
 # $R^2$ and `RMSE` on the training set and test set? Make a second model where, for the 
 # categorical variables, you regress price on a model comprised of one-hot encoded 
@@ -99,12 +112,130 @@ plt.show()
 # variable trap); what is the $R^2$ and `RMSE` on the test set? Which model performs 
 # better on the test set? Make a third model that combines all the regressors from 
 # the previous two; what is the $R^2$ and `RMSE` on the test set? Does the joint model
-#  perform better or worse, and by home much?
+#  perform better or worse, and by how much?
+
+# %%
+# df.info()
+# make X the numeric variables from the train set 
+num_X = train[['Make_Year', 'Mileage_Run', 'No_of_Owners', 'Seating_Capacity']]
+# make y the converted price variable, our target 
+target_y = train['log_Price']
+
+# %% 
+# initalize the linear regression model, fitting it to our X and y from the train set
+model_num = LinearRegression().fit(num_X, target_y)
+
+# %%
+# find the R squared and the RMSE for the train set 
+y_pred = model_num.predict(num_X)
+mse = mean_squared_error(target_y, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(target_y, y_pred)
+print(f'For the train set with the numeric model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %% 
+# find the R squared and RMSE for the test set
+# select the columns for X that are used in the regression from the test set
+test_X = test[['Make_Year', 'Mileage_Run', 'No_of_Owners', 'Seating_Capacity']]
+# select the target variable from the test set
+test_y = test['log_Price']
+
+# %% 
+y_pred = model_num.predict(test_X)
+mse = mean_squared_error(test_y, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(test_y, y_pred)
+print(f'For the test set with the numeric model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %% 
+# train.info()
+# make another model based on the categorical variables 
+# let X_cat equal all of the boolean columns which are the columns housing the dummy columns
+# make a list cols of the boolean columns
+cols = list(train.select_dtypes(include=['bool']).columns)
+X_cat = train[cols]
+# let y_target equal the log_Price column from the train data frame 
+y_target = train['log_Price']
+
+# %% 
+# initalize and fit the new model 
+model_cat = LinearRegression().fit(X_cat, y_target)
+
+# %%
+# find the R squared and the RMSE for the train set 
+y_pred = model_cat.predict(X_cat)
+mse = mean_squared_error(target_y, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(target_y, y_pred)
+print(f'For the train set with the categorical model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %%
+test_cat = test[cols]
+y_test = test['log_Price']
+
+# %% 
+# find the R squared and the RMSE for the train set 
+y_pred = model_cat.predict(test_cat)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+print(f'For the test set with the categorical model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %% 
+# combine both models - use all of the columns except for price and log_Price 
+# make a list of all columns except for price and log_price 
+cols = list(train.drop(['Price', 'log_Price'], axis=1).columns)
+X = train[cols]
+# make y as the log price column 
+y_target = train['log_Price']
+
+# %% 
+# initalize and fit the model 
+model = LinearRegression().fit(X, y_target)
+
+# %% 
+# find the R squared and the RMSE for the train set 
+y_pred = model.predict(X)
+mse = mean_squared_error(y_target, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_target, y_pred)
+print(f'For the train set with the joint model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %% 
+# make X and y based on the test set
+X_test = test[cols]
+y_test = test['log_Price']
+
+# %%
+# find the R squared and the RMSE for the train set 
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+print(f'For the test set with the joint model, R squared = {r2:.4f}, RMSE = {rmse:.3f}')
+
+# %% [markdown]
+# The joint model performs better than the other two by a pretty signifigant amount. The R 
+# squared for the test set is 0.81, which is larger than the R squared of 0.65 and 0.38 for 
+# the categorical and numeric models respectively. The root mean squared error is also lower, 
+# being 0.188 (log value) compared to 0.257 and 0.345. This means that the joint model is 
+# pretty clearly the best model to use. 
+
+# %% [markdown]
 #   5. Use the `PolynomialFeatures` function from `sklearn` to expand the set of numerical
 #  variables you're using in the regression. As you increase the degree of the expansion, 
 # how do the $R^2$ and `RMSE` change? At what point does $R^2$ go negative on the test set? 
 # For your best model with expanded features, what is the $R^2$ and `RMSE`? How does it 
 # compare to your best model from part 4?
+
+# %% 
+for i in range(10): 
+    poly = PolynomialFeatures(degree=2, include_bias=False)
+    X_poly = poly.fit_transform(X)
+    pol = LinearRegression().fit(X_poly, y)
+    y_pred_poly = pol.predict(X_poly)
+
+# %% [markdown]
 #   6. For your best model so far, determine the predicted values for the test data and 
 # plot them against the true values. Do the predicted values and true values roughly line
 #  up along the diagonal, or not? Compute the residuals/errors for the test data and 
